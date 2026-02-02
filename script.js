@@ -1,6 +1,9 @@
+// script.js
+
+// --- CẤU HÌNH & DỮ LIỆU ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const API_URL = "/api"; 
+const API_URL = "/api"; // Tự động nhận diện localhost:3000
 
 // Biến Game
 let gameState = 'MENU';
@@ -33,6 +36,7 @@ window.addEventListener('keyup', e => keys[e.key] = false);
 document.getElementById('btn-pause').addEventListener('click', togglePause);
 
 // --- CÁC HÀM ĐIỀU KHIỂN GAME ---
+
 function startGame() {
     score = 0;
     lives = 3;
@@ -78,6 +82,7 @@ function togglePause() {
 }
 
 // --- LOGIC GAME LOOP ---
+
 function spawnItems() {
     if (gameState !== 'PLAYING') return;
     
@@ -244,25 +249,29 @@ let toastTimeout;
 function showToast(message, type) {
     const toast = document.getElementById('game-toast');
     
+    // Xóa class cũ để reset animation
     toast.className = ''; 
     toast.classList.add('hidden');
     
+    // Trick để trình duyệt nhận diện là animation mới (Reflow)
     void toast.offsetWidth; 
 
     toast.innerText = message;
-    toast.classList.remove('hidden'); 
+    toast.classList.remove('hidden'); // Hiện lên -> Kích hoạt slideInBounce
     
     if (type === 'success') toast.classList.add('toast-success');
     else if (type === 'error') toast.classList.add('toast-error');
     else if (type === 'gold') toast.classList.add('toast-gold');
 
+    // Tự động ẩn sau 2.5 giây
     if (toastTimeout) clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => {
-        toast.classList.add('hidden'); 
+        toast.classList.add('hidden'); // Hoặc thêm class toast-fadeout nếu muốn
     }, 2500);
 }
 
 // --- GAME OVER & LEADERBOARD ---
+
 function gameOver() {
     gameState = 'GAMEOVER';
     document.getElementById('final-score').innerText = score;
@@ -282,21 +291,10 @@ function saveHighScore() {
 
     fetch(`${API_URL}/save`, {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'x-api-key': 'HACKER_LO_159362'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ PlayerName: name, Score: score }) 
     })
-    .then(res => {
-        // Kiểm tra xem server có từ chối không (nếu sai key)
-        if (!res.ok) {
-            if (res.status === 403) throw new Error("Sai mật khẩu API!");
-            if (res.status === 400) throw new Error("Điểm số không hợp lệ!");
-            throw new Error("Lỗi Server");
-        }
-        return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
         showToast("🏆 ĐÃ LƯU ĐIỂM!", "gold");
         showLeaderboard(); 
