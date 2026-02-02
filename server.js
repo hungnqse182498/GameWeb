@@ -1,4 +1,4 @@
-// server.js
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -8,12 +8,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Thay link MongoDB của ông vào đây nếu muốn, hoặc dùng link mặc định này để test
-const MONGO_URI = 'mongodb+srv://sa:123451@cluster0.rydit5x.mongodb.net/?appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI;
+const SECRET_KEY = process.env.API_KEY;
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ Đã kết nối MongoDB thành công!'))
-    .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
+if (!MONGO_URI) {
+    console.error("❌ LỖI: Chưa cấu hình MONGO_URI trong file .env!");
+} else {
+    mongoose.connect(MONGO_URI)
+        .then(() => console.log('✅ Đã kết nối MongoDB thành công!'))
+        .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
+}
 
 const playerSchema = new mongoose.Schema({
     PlayerName: String,
@@ -23,35 +27,44 @@ const playerSchema = new mongoose.Schema({
 
 const Player = mongoose.model('Player', playerSchema);
 
-// Quan trọng: Phục vụ file tĩnh (HTML, CSS, JS)
 app.use(express.static(__dirname));
 
-// Route trang chủ
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// API Lấy bảng xếp hạng
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        const topPlayers = await Player.find().sort({ Score: -1 }).limit(20);
+        const topPlayers = await Player.find().sort({ Score: -1, date: 1 }).limit(20);
         res.json(topPlayers);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// API Lưu điểm
 app.post('/api/save', async (req, res) => {
     try {
         const { PlayerName, Score } = req.body;
-        const newPlayer = new Player({ PlayerName, Score });
+        const clientKey = req.headers['x-api-key']; 
+
+        if (clientKey !== SECRET_KEY) {
+            console.log(`⚠️ Có đứa hack! IP: ${req.ip}`);
+            return res.status(403).json({ error: "Sai mật khẩu API! Cút!" });
+        }
+
+        if (!Score || Score < 0 || Score > 10000) {
+             return res.status(400).json({ error: "Điểm số không hợp lệ!" });
+        }
+
+        let cleanName = (PlayerName || "Vô danh").trim();
+        if (cleanName.length > 15) cleanName = cleanName.substring(0, 15) + "...";
+
+        const newPlayer = new Player({ PlayerName: cleanName, Score });
         await newPlayer.save();
         
-        // Dọn dẹp database, chỉ giữ Top 20
         const count = await Player.countDocuments();
         if (count > 20) {
-            const top20 = await Player.find().sort({ Score: -1 }).limit(20);
+            const top20 = await Player.find().sort({ Score: -1, date: 1 }).limit(20);
             const top20Ids = top20.map(p => p._id);
             await Player.deleteMany({ _id: { $nin: top20Ids } });
         }
@@ -61,7 +74,7 @@ app.post('/api/save', async (req, res) => {
     }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server đang chạy tại: http://localhost:${PORT}`);
 });
